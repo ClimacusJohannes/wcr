@@ -1,5 +1,6 @@
-use std::{error::Error, fs::File, io::{self, BufRead, BufReader}};
+use std::{error::Error, fmt::format, fs::File, hash::Hash, io::{self, BufRead, BufReader}};
 use clap::Parser;
+use words_count::count;
 use crate::styles::get_styles;
 
 pub mod styles;
@@ -52,6 +53,7 @@ struct FileInfo {
     num_bytes : usize,
 }
 
+type ListInfo = (FileInfo, String);
 
 pub fn cli() -> MyResult<Cli> {
     let mut cli_temp : Cli = Parser::parse();
@@ -66,6 +68,7 @@ pub fn cli() -> MyResult<Cli> {
     Ok(cli_temp.clone())
 }
 
+
 fn open(filename : &str) -> MyResult<Box<dyn BufRead>> {
     match filename {
         "-" => Ok(Box::new(BufReader::new(io::stdin()))),
@@ -73,13 +76,13 @@ fn open(filename : &str) -> MyResult<Box<dyn BufRead>> {
     }
 }
 
-fn count(mut file : impl BufRead) -> MyResult<FileInfo> {
+fn run_count(mut file : impl BufRead) -> MyResult<FileInfo> {
     let mut num_lines = 0;
     let mut num_words = 0;
     let mut num_chars = 0;
     let mut num_bytes = 0;
 
-    while true {
+    loop {
         let mut line = "".to_owned();
         match file.read_line(&mut line) {
             Ok(0) => {
@@ -108,15 +111,48 @@ fn count(mut file : impl BufRead) -> MyResult<FileInfo> {
     })
 }
 
+fn display(info: Vec<ListInfo>, cli: Cli) {
+    let mut list : Vec<Vec<String>>; 
+
+    for d in info {
+        println!("{:#?}", d);
+    }
+}
+
+
+
 pub fn run(cli : Cli) -> MyResult<()> {
     println!("{:#?}", cli);
-    for filename in cli.files {
-        match open(&filename) {
-            Err(e) => { eprintln!("{}: {}", filename, e)},
-            Ok(_) => { println!("Opened: {}", filename)},
-        }
+    let mut results : Vec<ListInfo> = vec![];
+    for filename in &cli.files {
+        match open(&filename)
+            .and_then(|info| Ok(run_count(info))) {
+                Ok(Ok(info)) => {
+                    results.push((info, filename.clone()));
+                },
+                Ok(Err(err)) => {
+                    let info = FileInfo {
+                        num_bytes: 0,
+                        num_chars: 0,
+                        num_words: 0,
+                        num_lines: 0,
+                    };
+                    results.push((info, format!("{}: {}", &filename, err.to_string())))
+                },
+                Err(err) => {
+                    let info = FileInfo {
+                        num_bytes: 0,
+                        num_chars: 0,
+                        num_words: 0,
+                        num_lines: 0,
+                    };
+                    results.push((info, format!("{}: {}", &filename, err.to_string())))
+                },
+            }
+
     }
 
+    display(results, cli);
     Ok(())
 }
 
@@ -124,13 +160,15 @@ pub fn run(cli : Cli) -> MyResult<()> {
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use crate::run_count;
+
     use super::{count, FileInfo};
     use std::io::Cursor;
 
     #[test]
     fn test_count() {
         let text = "I don't want the world. I just want your half.\r\n";
-        let info = count(Cursor::new(text));
+        let info = run_count(Cursor::new(text));
         assert!(info.is_ok());
         let expected = FileInfo {
             num_lines: 1,
