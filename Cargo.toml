@@ -7,3 +7,10 @@ edition = "2021"
 anstyle = "1.0.7"
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
+
+[dev-dependencies]
+anyhow = "1.0.86"
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
+pretty_assertions = "1.4.0"
+rand = "0.8.5"
