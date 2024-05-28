@@ -1,7 +1,6 @@
-use std::error::Error;
+use std::{error::Error, fs::File, io::{self, BufRead, BufReader}};
 use clap::Parser;
 use crate::styles::get_styles;
-use colored::Colorize;
 
 pub mod styles;
 
@@ -45,6 +44,14 @@ pub struct Cli {
     words: bool,
 }
 
+#[derive(Debug, PartialEq)]
+struct FileInfo {
+    num_lines : usize,
+    num_words : usize,
+    num_chars : usize,
+    num_bytes : usize,
+}
+
 
 pub fn cli() -> MyResult<Cli> {
     let mut cli_temp : Cli = Parser::parse();
@@ -55,12 +62,82 @@ pub fn cli() -> MyResult<Cli> {
         cli_temp.bytes = true;
     }
 
-    let cli = cli_temp.clone();
+    // cli should not be mutable when passed on.
+    Ok(cli_temp.clone())
+}
 
-    Ok(cli)
+fn open(filename : &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(BufReader::new(io::stdin()))),
+        _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
+    }
+}
+
+fn count(mut file : impl BufRead) -> MyResult<FileInfo> {
+    let mut num_lines = 0;
+    let mut num_words = 0;
+    let mut num_chars = 0;
+    let mut num_bytes = 0;
+
+    while true {
+        let mut line = "".to_owned();
+        match file.read_line(&mut line) {
+            Ok(0) => {
+                break;
+            },
+            Ok(count) => {
+                num_lines += 1;
+                num_chars += count;
+                let result = words_count::count(&line);
+                num_words += result.words;
+                for byte in line.to_owned().bytes() {
+                    num_bytes += 1;
+                }
+            },
+            Err(e) => {
+                eprintln!("Error while reading line: {:?}", e);
+            }
+        }
+    }
+
+    Ok(FileInfo {
+        num_lines,
+        num_words,
+        num_chars,
+        num_bytes,
+    })
 }
 
 pub fn run(cli : Cli) -> MyResult<()> {
     println!("{:#?}", cli);
+    for filename in cli.files {
+        match open(&filename) {
+            Err(e) => { eprintln!("{}: {}", filename, e)},
+            Ok(_) => { println!("Opened: {}", filename)},
+        }
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::{count, FileInfo};
+    use std::io::Cursor;
+
+    #[test]
+    fn test_count() {
+        let text = "I don't want the world. I just want your half.\r\n";
+        let info = count(Cursor::new(text));
+        assert!(info.is_ok());
+        let expected = FileInfo {
+            num_lines: 1,
+            num_words: 10,
+            num_chars: 48,
+            num_bytes: 48,
+        };
+        assert_eq!(info.unwrap(), expected);
+    }
 }

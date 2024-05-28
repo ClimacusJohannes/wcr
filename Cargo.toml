@@ -7,6 +7,7 @@ edition = "2021"
 anstyle = "1.0.7"
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
+words-count = "0.1.6"
 
 [dev-dependencies]
 anyhow = "1.0.86"
