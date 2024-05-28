@@ -173,7 +173,7 @@ fn display(list_info: Vec<ListInfo>, cli: Cli) {
         for mut s in &file {
             if s == &file[file.len()-1] {break}
             let mut t = s.clone();
-            while !(t.len() > 7) {
+            while !(t.len() > longest_num) {
                 t = " ".to_owned() + &t;
             }
             print!("{}", t);
